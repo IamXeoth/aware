@@ -1,0 +1,576 @@
+# ================================================================================
+# AWARE - Default Rules Pack (v1.0)
+# 25 regras essenciais com sistema de confirmação graduado
+# ================================================================================
+
+version: "1.0"
+rules:
+
+  # =============================================================================
+  # 🔑 SECRETS_EXPOSED (6 regras)
+  # =============================================================================
+
+  - id: SEC_ENV_FILE_COMMITTED
+    risk: SECRETS_EXPOSED
+    severity: critical
+    action: block
+    type: git_file_added
+    
+    match:
+      file_path_regex: "(^|/)\\.env(\\..*)?$"
+    
+    message: "Arquivo .env detectado no commit"
+    impact: "Expõe credenciais, tokens e secrets em texto plano no repositório"
+    recommendation: "Adicione .env* ao .gitignore e use variáveis de ambiente ou secret managers"
+
+  # -----------------------------------------------------------------------------
+
+  - id: SEC_API_KEY_HARDCODED
+    risk: SECRETS_EXPOSED
+    severity: high
+    action: require_confirm
+    type: code_regex
+    
+    match:
+      patterns:
+        - "(?i)(api[_-]?key|apikey|api[_-]?token)\\s*[=:]\\s*['\"][A-Za-z0-9_\\-/+=]{16,}['\"]"
+        - "(?i)(secret[_-]?key|access[_-]?token)\\s*[=:]\\s*['\"][A-Za-z0-9_\\-/+=]{20,}['\"]"
+        - "(?i)(sk|pk|xoxb|xoxp|ghp|gho)-[A-Za-z0-9_]{20,}"
+      exclusions:
+        - "example"
+        - "test"
+        - "your_api_key"
+        - "changeme"
+        - "placeholder"
+      exclude_paths:
+        - "**/test/**"
+        - "**/tests/**"
+        - "**/fixtures/**"
+    
+    confirm:
+      mode: token
+      token: "KEY"
+    
+    message: "API key hardcoded detectada"
+    impact: "Credenciais expostas podem ser extraídas do histórico do Git"
+    recommendation: "Use variáveis de ambiente (process.env, os.environ) ou secret managers (AWS Secrets Manager, Vault)"
+
+  # -----------------------------------------------------------------------------
+
+  - id: SEC_AWS_CREDENTIALS
+    risk: SECRETS_EXPOSED
+    severity: critical
+    action: block
+    type: code_regex
+    
+    match:
+      patterns:
+        - "AKIA[0-9A-Z]{16}"
+        - "(?i)aws[_-]?access[_-]?key[_-]?id\\s*[=:]\\s*['\"][A-Z0-9]{20}['\"]"
+        - "(?i)aws[_-]?secret[_-]?access[_-]?key\\s*[=:]\\s*['\"][A-Za-z0-9/+=]{40}['\"]"
+    
+    severity_by_context:
+      - paths: ["**/docs/**", "**/*.md", "**/examples/**"]
+        severity: medium
+        action: warn
+      - paths: ["**/src/**", "**/*.py", "**/*.js", "**/*.ts", "**/*.env*"]
+        severity: critical
+        action: block
+    
+    message: "Credenciais AWS detectadas"
+    impact: "Acesso total à conta AWS, podendo gerar custos enormes ou vazamento de dados"
+    recommendation: "Use AWS IAM roles, environment variables ou AWS Secrets Manager"
+
+  # -----------------------------------------------------------------------------
+
+  - id: SEC_PRIVATE_KEY_FILE
+    risk: SECRETS_EXPOSED
+    severity: critical
+    action: block
+    type: git_file_added
+    
+    match:
+      file_extensions:
+        - ".pem"
+        - ".key"
+        - ".p12"
+        - ".pfx"
+      file_patterns:
+        - "*_rsa"
+        - "*_ed25519"
+        - "*_ecdsa"
+        - "*.crt"
+        - "*.cert"
+    
+    message: "Arquivo de chave privada detectado"
+    impact: "Expõe chaves de criptografia ou autenticação"
+    recommendation: "Adicione *.pem, *.key ao .gitignore e use secret managers"
+
+  # -----------------------------------------------------------------------------
+
+  - id: SEC_PRIVATE_KEY_CONTENT
+    risk: SECRETS_EXPOSED
+    severity: critical
+    action: block
+    type: code_regex
+    
+    match:
+      patterns:
+        - "-----BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY-----"
+        - "-----BEGIN ENCRYPTED PRIVATE KEY-----"
+      file_globs:
+        - "**/*"
+    
+    message: "Conteúdo de chave privada detectado"
+    impact: "Chave privada exposta em arquivo de código ou configuração"
+    recommendation: "Remova a chave do arquivo e use certificados via secret manager"
+
+  # -----------------------------------------------------------------------------
+
+  - id: SEC_DATABASE_URL_WITH_PASSWORD
+    risk: SECRETS_EXPOSED
+    severity: high
+    action: require_confirm
+    type: code_regex
+    
+    match:
+      patterns:
+        - "(?i)(postgres|mysql|mongodb|redis)://[^:]+:[^@]+@[^/]+"
+        - "(?i)database[_-]?url\\s*[=:]\\s*['\"][^'\"]*:[^@]*@[^'\"]+['\"]"
+      must_not_contain:
+        - "localhost"
+        - "127.0.0.1"
+        - "example.com"
+      exclude_paths:
+        - "**/test/**"
+        - "**/docs/**"
+    
+    confirm:
+      mode: token
+      token: "DB"
+    
+    message: "Database URL com senha detectada"
+    impact: "Credenciais de banco de dados expostas"
+    recommendation: "Use variáveis de ambiente para connection strings"
+
+  # =============================================================================
+  # 🔓 TLS_DISABLED (3 regras)
+  # =============================================================================
+
+  - id: SEC_TLS_VERIFICATION_DISABLED
+    risk: TLS_DISABLED
+    severity: high
+    action: warn
+    type: code_regex
+    
+    match:
+      patterns:
+        - "verify\\s*=\\s*False"
+        - "rejectUnauthorized\\s*:\\s*false"
+        - "ssl[._-]?verify\\s*=\\s*(?:False|0)"
+        - "strictSSL\\s*:\\s*false"
+      file_globs:
+        - "**/*.py"
+        - "**/*.js"
+        - "**/*.ts"
+    
+    message: "Verificação TLS/SSL desativada"
+    impact: "Permite ataques man-in-the-middle"
+    recommendation: "Corrija certificados inválidos ao invés de desabilitar verificação"
+
+  # -----------------------------------------------------------------------------
+
+  - id: SEC_CURL_INSECURE
+    risk: TLS_DISABLED
+    severity: medium
+    action: warn
+    type: code_regex
+    
+    match:
+      patterns:
+        - "curl.*-k"
+        - "curl.*--insecure"
+      file_globs:
+        - "**/*.sh"
+        - "**/*.bash"
+        - "**/Dockerfile"
+    
+    message: "curl com --insecure detectado"
+    impact: "Desabilita validação de certificado SSL/TLS"
+    recommendation: "Remova -k/--insecure e resolva problemas de certificado"
+
+  # -----------------------------------------------------------------------------
+
+  - id: SHELL_CURL_INSECURE
+    risk: TLS_DISABLED
+    severity: high
+    action: require_confirm
+    type: shell
+    
+    match:
+      program: curl
+      flags_any: ["k", "insecure"]
+    
+    confirm:
+      mode: yesno
+    
+    message: "curl executado com --insecure"
+    impact: "Desativa verificação de certificado SSL/TLS"
+    recommendation: "Remova -k/--insecure e resolva problemas de certificado"
+
+  # =============================================================================
+  # 🐛 DEBUG_IN_PRODUCTION (2 regras)
+  # =============================================================================
+
+  - id: CODE_DEBUG_TRUE
+    risk: DEBUG_IN_PRODUCTION
+    severity: high
+    action: warn
+    type: code_regex
+    
+    match:
+      patterns:
+        - "(?i)DEBUG\\s*=\\s*True"
+        - "(?i)NODE_ENV\\s*=\\s*['\"]development['\"]"
+        - "app\\.debug\\s*=\\s*true"
+      must_not_contain:
+        - "# DEBUG"
+        - "// DEBUG"
+        - "test"
+      file_globs:
+        - "**/*.py"
+        - "**/*.js"
+        - "**/*.env*"
+    
+    message: "Modo debug ativado"
+    impact: "Expõe stack traces, variáveis internas e facilita exploits"
+    recommendation: "Use DEBUG=False em produção e controle via environment variables"
+
+  # -----------------------------------------------------------------------------
+
+  - id: CODE_SENSITIVE_LOG
+    risk: SENSITIVE_DATA_LOGGED
+    severity: medium
+    action: warn
+    type: code_regex
+    
+    match:
+      patterns:
+        - "(?i)log.*password"
+        - "(?i)console\\.log.*token"
+        - "(?i)print.*secret"
+      file_globs:
+        - "**/*.py"
+        - "**/*.js"
+        - "**/*.ts"
+    
+    message: "Log de dado sensível detectado"
+    impact: "Senhas/tokens podem aparecer em logs de produção"
+    recommendation: "Remova logs sensíveis ou use log redaction"
+
+  # =============================================================================
+  # 🌐 CORS_MISCONFIGURATION (2 regras)
+  # =============================================================================
+
+  - id: CODE_CORS_STAR
+    risk: CORS_MISCONFIGURATION
+    severity: medium
+    action: warn
+    type: code_regex
+    
+    match:
+      patterns:
+        - "Access-Control-Allow-Origin.*\\*"
+        - "cors.*origin.*\\*"
+      file_globs:
+        - "**/*.py"
+        - "**/*.js"
+        - "**/*.ts"
+    
+    message: "CORS configurado com wildcard (*)"
+    impact: "Permite qualquer origem acessar API"
+    recommendation: "Especifique origens permitidas explicitamente"
+
+  # -----------------------------------------------------------------------------
+
+  - id: SEC_CORS_CREDENTIALS_WITH_WILDCARD
+    risk: CORS_MISCONFIGURATION
+    severity: high
+    action: require_confirm
+    type: contextual_multi_match
+    
+    match:
+      condition: AND
+      scope: file
+      patterns:
+        - pattern: "(?i)credentials.*true"
+          name: "credentials_enabled"
+        - pattern: "(?i)origin.*\\*"
+          name: "wildcard_origin"
+      file_globs:
+        - "**/*.py"
+        - "**/*.js"
+        - "**/*.ts"
+    
+    confirm:
+      mode: token
+      token: "CORS"
+    
+    message: "CORS: credentials=true com origin=* (CRÍTICO)"
+    impact: "Permite roubo de cookies/tokens de qualquer origem"
+    recommendation: "Remova Access-Control-Allow-Credentials ou especifique origins"
+
+  # =============================================================================
+  # 🔐 AUTH_WEAKNESS (3 regras)
+  # =============================================================================
+
+  - id: SEC_JWT_NO_EXPIRATION
+    risk: AUTH_WEAKNESS
+    severity: medium
+    action: warn
+    type: code_regex
+    
+    match:
+      patterns:
+        - "jwt\\.encode.*(?!.*exp)"
+        - "sign\\(.*\\{(?!.*exp).*\\}"
+      context_must_contain_any:
+        - "jwt"
+        - "token"
+      file_globs:
+        - "**/*.py"
+        - "**/*.js"
+        - "**/*.ts"
+    
+    message: "JWT criado sem expiração (exp)"
+    impact: "Tokens nunca expiram, aumentando janela de ataque"
+    recommendation: "Adicione campo 'exp' com expiração apropriada (ex: 1h)"
+
+  # -----------------------------------------------------------------------------
+
+  - id: SEC_WEAK_SECRET_KEY
+    risk: AUTH_WEAKNESS
+    severity: high
+    action: warn
+    type: code_regex
+    
+    match:
+      patterns:
+        - "(?i)secret[_-]?key\\s*=\\s*['\"](?:secret|password|123|admin|changeme)['\"]"
+      file_globs:
+        - "**/*.py"
+        - "**/*.js"
+        - "**/*.env"
+    
+    message: "Secret key fraca ou padrão detectada"
+    impact: "Facilita quebra de tokens/sessões"
+    recommendation: "Use secret keys fortes e aleatórias (32+ chars)"
+
+  # -----------------------------------------------------------------------------
+
+  - id: SEC_HARDCODED_PASSWORD
+    risk: AUTH_WEAKNESS
+    severity: critical
+    action: require_confirm
+    type: code_regex
+    
+    match:
+      patterns:
+        - "(?i)password\\s*=\\s*['\"][^'\"]{3,}['\"]"
+        - "(?i)passwd\\s*=\\s*['\"][^'\"]{3,}['\"]"
+      exclusions:
+        - "placeholder"
+        - "changeme"
+        - "your_password"
+        - "password123"
+      must_not_contain:
+        - "input("
+        - "raw_input("
+        - "prompt("
+      exclude_paths:
+        - "**/test/**"
+        - "**/docs/**"
+      context_must_contain_any:
+        - "auth"
+        - "login"
+        - "database"
+        - "db"
+    
+    confirm:
+      mode: token
+      token: "PASS"
+    
+    message: "Senha hardcoded detectada"
+    impact: "Credenciais expostas no código fonte"
+    recommendation: "Use variáveis de ambiente ou secret managers"
+
+  # =============================================================================
+  # 💣 DESTRUCTIVE_COMMAND (5 regras)
+  # =============================================================================
+
+  - id: SHELL_RM_RF_DANGEROUS_PATH
+    risk: DESTRUCTIVE_COMMAND
+    severity: critical
+    action: require_confirm
+    type: shell
+    
+    match:
+      program: rm
+      flags_contain_all: ["r", "f"]
+      path_any: ["/", "~", ".", "*"]
+    
+    confirm:
+      mode: token
+      token: "RM"
+    
+    message: "rm -rf em path extremamente perigoso"
+    impact: "Pode apagar todo o projeto, home directory ou sistema operacional"
+    recommendation: "Use path específico e verifique 3x. Considere usar trash-cli"
+
+  # -----------------------------------------------------------------------------
+
+  - id: SHELL_GIT_FORCE_PUSH
+    risk: DESTRUCTIVE_COMMAND
+    severity: high
+    action: require_confirm
+    type: shell
+    
+    match:
+      program: git
+      subcommand: push
+      flags_any: ["f", "force"]
+    
+    confirm:
+      mode: token
+      token: "PUSH"
+    
+    message: "git push --force detectado"
+    impact: "Reescreve histórico remoto, pode causar perda de trabalho do time"
+    recommendation: "Use git push --force-with-lease (mais seguro) e avise o time antes"
+
+  # -----------------------------------------------------------------------------
+
+  - id: SHELL_GIT_RESET_HARD
+    risk: DESTRUCTIVE_COMMAND
+    severity: medium
+    action: require_confirm
+    type: shell
+    
+    match:
+      program: git
+      subcommand: reset
+      flags_any: ["hard"]
+    
+    confirm:
+      mode: token
+      token: "RESET"
+    
+    message: "git reset --hard detectado"
+    impact: "Descarta mudanças locais permanentemente"
+    recommendation: "Use git stash se quiser guardar mudanças"
+
+  # -----------------------------------------------------------------------------
+
+  - id: SHELL_DOCKER_PRUNE_ALL
+    risk: DESTRUCTIVE_COMMAND
+    severity: medium
+    action: require_confirm
+    type: shell
+    
+    match:
+      program_any: ["docker"]
+      command_contains_any: ["prune"]
+      flags_any: ["a", "all"]
+    
+    confirm:
+      mode: yesno
+    
+    message: "docker prune com --all detectado"
+    impact: "Remove TODAS as imagens não utilizadas, incluindo as não-dangling"
+    recommendation: "Use 'docker image prune' sem --all para limpeza seletiva"
+
+  # -----------------------------------------------------------------------------
+
+  - id: SHELL_DROP_DATABASE
+    risk: DESTRUCTIVE_COMMAND
+    severity: critical
+    action: require_confirm
+    type: shell
+    
+    match:
+      program_any: ["psql", "mysql", "mongo"]
+      command_contains_any: ["DROP DATABASE", "DROP SCHEMA"]
+    
+    confirm:
+      mode: token
+      token: "DROP"
+    
+    message: "DROP DATABASE detectado"
+    impact: "Apaga banco de dados inteiro"
+    recommendation: "Faça backup antes e confirme que é o ambiente correto"
+
+  # =============================================================================
+  # ☁️ INFRASTRUCTURE_RISK (2 regras)
+  # =============================================================================
+
+  - id: CODE_KUBERNETES_PRIVILEGED
+    risk: INFRASTRUCTURE_RISK
+    severity: high
+    action: warn
+    type: code_regex
+    
+    match:
+      patterns:
+        - "privileged:\\s*true"
+      context_must_contain_any:
+        - "securityContext"
+        - "container"
+      file_globs:
+        - "**/*.yaml"
+        - "**/*.yml"
+    
+    message: "Container Kubernetes com privileged: true"
+    impact: "Container roda com acesso root ao host"
+    recommendation: "Remova privileged: true e use capabilities específicas"
+
+  # -----------------------------------------------------------------------------
+
+  - id: CODE_DOCKER_PRIVILEGED
+    risk: INFRASTRUCTURE_RISK
+    severity: high
+    action: warn
+    type: code_regex
+    
+    match:
+      patterns:
+        - "docker\\s+run.*--privileged"
+      file_globs:
+        - "**/*.sh"
+        - "**/*.bash"
+        - "**/Dockerfile"
+    
+    message: "docker run --privileged detectado"
+    impact: "Container com acesso total ao host"
+    recommendation: "Use --cap-add para capabilities específicas ao invés de --privileged"
+
+  # =============================================================================
+  # 📦 DEPENDENCY_RISK (1 regra)
+  # =============================================================================
+
+  - id: CODE_NPM_INSTALL_UNSAFE
+    risk: DEPENDENCY_RISK
+    severity: medium
+    action: warn
+    type: code_regex
+    
+    match:
+      patterns:
+        - "npm\\s+install.*--ignore-scripts"
+      file_globs:
+        - "**/*.sh"
+        - "**/*.bash"
+        - "**/Dockerfile"
+    
+    message: "npm install --ignore-scripts detectado"
+    impact: "Scripts de instalação não executam, pode quebrar dependências"
+    recommendation: "Remova --ignore-scripts ou use apenas quando necessário"

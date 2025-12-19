@@ -1,0 +1,54 @@
+#!/usr/bin/env bash
+# AWARE pre-push hook
+# Auto-generated - DO NOT EDIT MANUALLY
+
+set -e
+
+# Get remote and local refs
+remote="$1"
+url="$2"
+
+# Check if aware is installed
+if ! command -v aware &> /dev/null; then
+    echo "❌ AWARE não encontrado no PATH"
+    echo "   Instale com: pipx install aware-security"
+    exit 1
+fi
+
+# Read stdin to get refs being pushed
+while read local_ref local_sha remote_ref remote_sha
+do
+    if [ "$local_sha" = "0000000000000000000000000000000000000000" ]; then
+        # Branch deletion, skip
+        continue
+    fi
+    
+    if [ "$remote_sha" = "0000000000000000000000000000000000000000" ]; then
+        # New branch, compare with main/master
+        if git rev-parse --verify origin/main &> /dev/null; then
+            base="origin/main"
+        elif git rev-parse --verify origin/master &> /dev/null; then
+            base="origin/master"
+        else
+            echo "⚠️  Não foi possível determinar branch base, pulando scan"
+            continue
+        fi
+    else
+        base="$remote_sha"
+    fi
+    
+    # Run AWARE scan on diff
+    aware scan --diff "$base...HEAD"
+    exit_code=$?
+    
+    if [ $exit_code -eq 20 ]; then
+        echo ""
+        echo "❌ Push bloqueado por findings críticos"
+        exit 1
+    elif [ $exit_code -eq 10 ]; then
+        echo ""
+        echo "⚠️  Push permitido com warnings"
+    fi
+done
+
+exit 0

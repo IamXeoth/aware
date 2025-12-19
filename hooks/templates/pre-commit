@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+# AWARE pre-commit hook
+# Auto-generated - DO NOT EDIT MANUALLY
+
+set -e
+
+# Check if aware is installed
+if ! command -v aware &> /dev/null; then
+    echo "❌ AWARE não encontrado no PATH"
+    echo "   Instale com: pipx install aware-security"
+    exit 1
+fi
+
+# Run AWARE scan on staged files
+aware scan --staged
+
+exit $?
