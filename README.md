@@ -1,299 +1,290 @@
-# 🧠 AWARE
+# AWARE
 
-**Cognitive Awareness for Developers**
+**Cognitive Awareness for Developers** - A security tool that prevents dangerous technical decisions before they happen.
 
-> *"Ferramentas não evitam erros. Consciência evita."*
+AWARE intercepts risky commands and code patterns, providing graduated warnings and confirmations to help developers avoid security incidents and data loss.
 
-AWARE é uma ferramenta local e privacy-first que atua como guardião cognitivo no fluxo de desenvolvimento, interceptando decisões técnicas perigosas e forçando consciência antes da execução.
-
-[![PyPI version](https://badge.fury.io/py/aware-security.svg)](https://badge.fury.io/py/aware-security)
 [![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Release](https://img.shields.io/github/v/release/IamXeoth/aware)](https://github.com/IamXeoth/aware/releases)
 
 ---
 
-## ✨ Features
+## Features
 
-- 🛡️ **Shell Wrapper** - Intercepta comandos perigosos (`rm -rf /`, `git push --force`)
-- 🪝 **Git Hooks** - Pre-commit e pre-push automáticos
-- 🔍 **Code Scanner** - Detecta secrets, debug mode, CORS issues
-- 🎨 **Multiple Outputs** - Console, JSON, SARIF, GitHub Annotations
-- 🔒 **Privacy-First** - 100% offline, zero telemetria
-- ⚡ **Fast** - Analisa apenas diffs, não o repo inteiro
+- **25 production-ready security rules** covering 8 risk categories
+- **Git hooks** for automated pre-commit and pre-push scanning
+- **Shell wrapper** for real-time command interception
+- **Multiple output formats** (console, JSON, SARIF, GitHub Annotations)
+- **Graduated response system** (warn/confirm/block)
+- **Privacy-first design** - 100% offline, zero telemetry
 
 ---
 
-## 🚀 Quick Start
-
-### Instalação
+## Installation
 ```bash
-pipx install aware-security
-```
+git clone https://github.com/IamXeoth/aware.git
+cd aware
 
-### Instalar Git Hooks
-```bash
-cd seu-projeto
-aware install
-```
+python -m venv venv
+source venv/bin/activate  # Windows: .\venv\Scripts\activate
 
-Agora `git commit` e `git push` executam AWARE automaticamente! ✅
-
-### Uso Manual
-```bash
-# Scanneia arquivos staged
-aware scan --staged
-
-# Intercepta comando perigoso
-aware wrap rm -rf /tmp/old
-
-# Scanneia diff antes do push
-aware scan --diff origin/main...HEAD
+pip install -e ".[dev]"
 ```
 
 ---
 
-## 📋 Comandos
+## Quick Start
 
-### `aware scan`
-
-Scanneia código em busca de decisões perigosas:
+### List available rules
 ```bash
-# Pre-commit
-aware scan --staged
-
-# Pre-push
-aware scan --diff origin/main...HEAD
-
-# Output JSON
-aware scan --staged --format json
-
-# Verbose mode
-aware scan --staged --verbose
+python cli.py rules list
 ```
 
-### `aware wrap`
+![Rules List](docs/screenshot-rules-list.png)
 
-Intercepta e analisa comando antes de executar:
+### View rules by risk category
 ```bash
-# Comando perigoso (requer token "RM")
-aware wrap rm -rf /
-
-# Git force push (requer token "PUSH")
-aware wrap git push --force
-
-# Curl insecure (requer y/N)
-aware wrap curl -k https://api.internal
+python cli.py rules list --by-risk
 ```
 
-### `aware install`
+![Rules by Risk](docs/screenshot-by-risk.png)
 
-Instala git hooks:
+### Explain a specific rule
 ```bash
-# Todos os hooks
-aware install
-
-# Apenas pre-commit
-aware install --hook pre-commit
+python cli.py rules explain SEC_ENV_FILE_COMMITTED
 ```
 
-### `aware rules`
+![Rule Explanation](docs/screenshot-explain.png)
 
-Gerencia regras:
+### Scan staged files
 ```bash
-# Lista regras
-aware rules list
-
-# Por categoria
-aware rules list --by-risk
-
-# Explica regra
-aware rules explain SEC_ENV_FILE_COMMITTED
-
-# Valida arquivo customizado
-aware rules validate custom_rules.yaml
+python cli.py scan --staged
 ```
 
----
-
-## 🎯 Regras Incluídas (25)
-
-### 🔑 Secrets Exposed
-- `.env` commitado
-- API keys hardcoded
-- AWS credentials
-- Senhas hardcoded
-- Database URLs com senha
-- Chaves privadas (SSH, TLS)
-
-### 🔓 TLS Disabled
-- `verify=False` (Python)
-- `rejectUnauthorized: false` (Node)
-- `curl -k` / `--insecure`
-
-### 🐛 Debug in Production
-- `DEBUG=True`
-- `NODE_ENV=development`
-- Logs sensíveis (passwords, tokens)
-
-### 🌐 CORS Misconfiguration
-- `origin: *`
-- `credentials: true` + wildcard
-
-### 🔐 Auth Weakness
-- JWT sem expiração
-- Secret keys fracas
-- Senhas hardcoded
-
-### 💣 Destructive Commands
-- `rm -rf` em paths perigosos
-- `git push --force`
-- `git reset --hard`
-- `docker system prune -a`
-- `DROP DATABASE`
-
----
-
-## 🎨 Outputs
-
-### Console (Default)
-```
-🔍 AWARE Scan (STAGED) - 2 findings
-
-━━━ CRITICAL (1) ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-🚨 Arquivo .env detectado no commit
-   📍 .env
-   Evidence: .env
-
-━━━ HIGH (1) ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-⚠️  Modo debug ativado
-   📍 src/config.py:+
-   Evidence: DEBUG = True
-
-──────────────────────────────────────────────────────────────
-Total de findings: 2
-❌ Exit code: 20 (Blocked)
-──────────────────────────────────────────────────────────────
-```
-
-### JSON
+### Install git hooks
 ```bash
-aware scan --staged --format json
+cd /path/to/your/project
+python /path/to/aware/cli.py install
 ```
 
-### SARIF (GitHub Code Scanning)
+---
+
+## Rule Categories
+
+| Category | Rules | Description |
+|----------|-------|-------------|
+| SECRETS_EXPOSED | 6 | API keys, credentials, AWS keys, private keys |
+| TLS_DISABLED | 3 | SSL/TLS verification bypasses |
+| DEBUG_IN_PRODUCTION | 2 | Debug mode, sensitive logging |
+| CORS_MISCONFIGURATION | 2 | Wildcard origins, credentials exposure |
+| AUTH_WEAKNESS | 3 | Weak secrets, hardcoded passwords, JWT issues |
+| DESTRUCTIVE_COMMAND | 5 | rm -rf, force push, database drops |
+| INFRASTRUCTURE_RISK | 2 | Privileged containers |
+| DEPENDENCY_RISK | 2 | Unsafe package installations |
+
+---
+
+## CLI Commands
 ```bash
-aware scan --staged --format sarif --output aware.sarif
+aware --version              # Show version
+aware scan --staged          # Scan staged files
+aware scan --diff base...head # Scan diff between refs
+aware wrap <command>         # Intercept shell command
+aware install               # Install git hooks
+aware uninstall             # Remove git hooks
+aware status                # Check hooks status
+aware rules list            # List all rules
+aware rules explain <id>    # Explain specific rule
+aware rules validate <file> # Validate custom rules file
 ```
 
-### GitHub Annotations
+---
+
+## Output Formats
+
+AWARE supports multiple output formats for different use cases:
+
+- **console** - Rich terminal output with colors (default)
+- **compact** - Minimal output for CI/CD pipelines
+- **json** - Machine-readable format for integrations
+- **sarif** - GitHub Security scanning format
+- **github** - GitHub Actions annotations
+
+Example:
 ```bash
-aware scan --staged --format github
+python cli.py scan --staged --format json --output report.json
 ```
 
 ---
 
-## ⚙️ Configuração
+## Git Hooks
 
-### Arquivo `.aware.yaml` (opcional)
-```yaml
-rules:
-  disable:
-    - CODE_DEBUG_TRUE
-  elevate:
-    CODE_CORS_STAR: critical
+AWARE provides two git hooks:
 
-ignore:
-  - "node_modules/**"
-  - "venv/**"
+**Pre-commit**: Scans staged files before commit
+- Blocks commits containing secrets or critical vulnerabilities
+- Allows warnings to proceed with acknowledgment
 
-policy:
-  default_action_for_critical: block
-```
+**Pre-push**: Scans diff before push
+- Compares local changes against remote branch
+- Prevents pushing dangerous code to shared repositories
 
-### Regras Customizadas
-```yaml
-# custom_rules.yaml
-version: "1.0"
-rules:
-  - id: CUSTOM_RULE
-    risk: SECRETS_EXPOSED
-    severity: high
-    action: warn
-    type: code_regex
-    match:
-      patterns:
-        - "my_secret\\s*=\\s*['\"].*['\"]"
-      file_globs:
-        - "**/*.py"
-    message: "Secret detectado"
-    impact: "Expõe informação sensível"
-    recommendation: "Use variável de ambiente"
-```
+Both hooks automatically detect and use AWARE if installed, or fall back to direct Python execution.
+
+---
+
+## Shell Wrapper
+
+The shell wrapper intercepts dangerous commands before execution:
 ```bash
-aware scan --staged --rules custom_rules.yaml
+python cli.py wrap rm -rf /important/data
+# AWARE will require explicit confirmation before executing
+```
+
+Commands are analyzed against the ruleset, and dangerous operations trigger confirmation prompts based on severity.
+
+---
+
+## Configuration
+
+AWARE uses YAML-based rules configuration. The default ruleset is located in `aware/config/default_rules.yaml`.
+
+Custom rules can be provided:
+```bash
+python cli.py scan --staged --rules custom_rules.yaml
+```
+
+Rule validation:
+```bash
+python cli.py rules validate custom_rules.yaml
 ```
 
 ---
 
-## 🔧 Integração CI/CD
-
-### GitHub Actions
-```yaml
-name: AWARE Security Scan
-
-on: [push, pull_request]
-
-jobs:
-  aware:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-        with:
-          fetch-depth: 0
-      
-      - name: Install AWARE
-        run: pipx install aware-security
-      
-      - name: Scan
-        run: aware scan --diff origin/main...HEAD --format sarif --output aware.sarif
-      
-      - name: Upload SARIF
-        uses: github/codeql-action/upload-sarif@v2
-        with:
-          sarif_file: aware.sarif
+## Architecture
+```
+aware/
+├── cli.py                  # Command-line interface
+├── config/
+│   └── default_rules.yaml  # Default ruleset
+├── core/
+│   ├── engine.py          # Core scanning engine
+│   ├── formatters.py      # Output formatters
+│   ├── models.py          # Data models
+│   └── rules_loader.py    # Rule loading and validation
+├── hooks/
+│   ├── install.py         # Git hooks installer
+│   └── templates/         # Hook templates
+├── scanners/
+│   └── git_diff.py        # Git diff scanner
+└── wrappers/
+    └── shell_wrap.py      # Shell command wrapper
 ```
 
 ---
 
-## 🤝 Contribuindo
+## Development
 
-Contribuições são bem-vindas! Por favor, abra uma issue ou pull request.
+### Running tests
+```bash
+pytest tests/
+```
 
----
+### Code formatting
+```bash
+black aware/
+ruff check aware/
+```
 
-## 📜 License
-
-MIT License - veja [LICENSE](LICENSE) para detalhes.
-
----
-
-## 🙏 Créditos
-
-Desenvolvido por **[Vinícius Lisboa](https://viniciuslisboa.com.br)** ([GitHub](https://github.com/IamXeoth))
-
-Parte do ecossistema [Hummand](https://hummand.tech) - GovTech e Soluções Empresariais.
-
----
-
-## 📫 Contato
-
-- **Email:** contato@viniciuslisboa.com.br
-- **GitHub:** [@IamXeoth](https://github.com/IamXeoth)
-- **Website:** [viniciuslisboa.com.br](https://viniciuslisboa.com.br)
+### Type checking
+```bash
+mypy aware/
+```
 
 ---
 
-**AWARE** não substitui ferramentas de segurança tradicionais (SAST, SOC).  
-Ele complementa reduzindo erro humano **antes** do incidente.
+## Use Cases
+
+**Development workflow protection**
+- Prevent accidental commits of secrets or credentials
+- Block force pushes without explicit confirmation
+- Warn about debug code in production paths
+
+**CI/CD integration**
+- JSON output for automated security gates
+- SARIF format for GitHub Security scanning
+- Exit codes for pipeline decisions
+
+**Training and awareness**
+- Detailed explanations for each rule violation
+- Educational impact and recommendation messages
+- Context-aware severity adjustments
+
+**Command safety**
+- Real-time interception of destructive operations
+- Graduated confirmation based on command risk
+- Prevention of accidental data loss
+
+---
+
+## Technical Details
+
+**Language**: Python 3.9+
+
+**Dependencies**:
+- typer - CLI framework
+- rich - Terminal formatting
+- pyyaml - Configuration parsing
+
+**Testing**: pytest
+
+**Build system**: Hatchling
+
+---
+
+## Roadmap
+
+- Unit and integration test coverage
+- PyPI package publication
+- VS Code extension
+- Additional rule packs (language-specific, framework-specific)
+- Web-based dashboard for findings visualization
+- Custom rule authoring documentation
+
+---
+
+## Contributing
+
+Contributions are welcome. Please ensure:
+
+- Code follows existing style conventions
+- Tests are included for new functionality
+- Documentation is updated accordingly
+- Commit messages are clear and descriptive
+
+---
+
+## License
+
+MIT License - see [LICENSE](LICENSE) for details.
+
+---
+
+## Author
+
+**Vinicius Lisboa**
+
+Email: contato@viniciuslisboa.com.br  
+GitHub: [@IamXeoth](https://github.com/IamXeoth)  
+Website: [viniciuslisboa.com.br](https://viniciuslisboa.com.br)
+
+Developed as part of [Hummand](https://hummand.com) - GovTech solutions for public sector digital transformation.
+
+---
+
+## Acknowledgments
+
+This project addresses a common gap in development workflows: the absence of real-time feedback on security and operational risks. AWARE is designed to integrate seamlessly into existing toolchains without requiring infrastructure changes or external services.
+
+The ruleset is based on common security patterns observed in production incidents, with emphasis on preventing accidental exposure rather than malicious activity.
